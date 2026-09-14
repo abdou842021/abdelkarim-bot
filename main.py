@@ -47,12 +47,12 @@ async def get_text_from_msg(message: Message, args: str) -> str:
 
 async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     if not text:
-        await message.reply("Failed")
+        await message.reply("Failed: Text is empty.")
         return
 
     words = text.split()
     if len(words) > config.MAX_WORDS:
-        await message.reply("Failed")
+        await message.reply("Failed: Text exceeds max words.")
         return
 
     output_audio = f"tts_{message.message_id}.mp3"
@@ -62,26 +62,27 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     flag = "🇺🇸" if is_us else "🇬🇧"
     caption = f"{flag} {text}"
 
-    if len(words) <= 4:
+    # تم توسيع نطاق جلب الفونتيك ليشمل حتى 10 كلمات لضمان ظهوره بشكل متكرر
+    if len(words) <= 10:
         accent_type = "American" if is_us else "British"
         prompt = (
             f"Provide ONLY the {accent_type} English IPA phonetic transcription "
-            f"for this text enclosed in standard brackets like [phonetic], with no extra text or intro: '{text}'"
+            f"for this text enclosed in standard brackets like [phonetic], with no markdown or extra text: '{text}'"
         )
         try:
             res = client.models.generate_content(
                 model=MODEL_NAME,
                 contents=prompt
             )
-            phonetic = res.text.strip()
+            phonetic = res.text.strip().replace("```", "").strip()
             if phonetic:
                 if not phonetic.startswith("["):
                     phonetic = f"[{phonetic}"
                 if not phonetic.endswith("]"):
                     phonetic = f"{phonetic}]"
                 caption += f"\n🗣 {phonetic}"
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"TTS Phonetic Error: {e}")
 
     audio_file = FSInputFile(output_audio)
     await message.reply_audio(audio=audio_file, caption=caption)
