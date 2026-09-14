@@ -339,6 +339,8 @@ async def cmd_exp(message: Message):
 
 
 # 12. تحويل النص داخل الصورة إلى كتابة /txt (بالرد أو إرسال الصورة مباشرة)
+
+# 12. تحويل النص داخل الصورة إلى كتابة /txt (مع تصغير الحجم لسرعة المعالجة)
 @dp.message(Command("txt"))
 @dp.message(F.photo & F.caption.startswith("/txt"))
 async def cmd_txt(message: Message):
@@ -362,7 +364,10 @@ async def cmd_txt(message: Message):
         file = await bot.get_file(photo.file_id)
         await bot.download_file(file.file_path, photo_path)
 
+        # فتح الصورة وتصغير حجمها لضمان سرعة الاستجابة
         img = Image.open(photo_path)
+        img.thumbnail((1024, 1024))
+
         prompt = "Extract and write down all readable text inside this image clearly. Return ONLY the extracted text."
         
         res = client.models.generate_content(
