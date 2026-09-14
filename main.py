@@ -11,15 +11,17 @@ from aiogram.types import (
     Message,
 )
 import edge_tts
-import google.generativeai as genai
+
+# استيراد المكتبة الرسمية الجديدة لـ Gemini
+from google import genai
 from PIL import Image
 
 # استدعاء ملف الإعدادات
 import config
 
-# تهيئة الذكاء الاصطناعي Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+# تهيئة عميل Gemini الجديد
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+MODEL_NAME = "gemini-1.5-flash"
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 
@@ -67,7 +69,10 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     if len(words) <= 4:
         prompt = f"Provide ONLY the IPA phonetic transcription for this text without any extra text or intro: '{text}'"
         try:
-            res = model.generate_content(prompt)
+            res = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt
+            )
             phonetic = res.text.strip()
             caption += f"\n🗣 [{phonetic}]"
         except Exception:
@@ -250,7 +255,10 @@ async def cmd_cor(message: Message):
     msg = await message.reply("⏳ جاري التصحيح...")
     try:
         prompt = f"Correct the spelling and grammar of this text. Return ONLY the corrected version:\n\n{text}"
-        res = model.generate_content(prompt)
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
         await msg.edit_text(f"✏️ **التصحيح:**\n{res.text.strip()}")
     except Exception as e:
         await msg.edit_text(f"❌ حدث خطأ أثناء التصحيح: {e}")
@@ -269,7 +277,10 @@ async def cmd_trab(message: Message):
     msg = await message.reply("⏳ جاري الترجمة...")
     try:
         prompt = f"Translate this English text to Arabic naturally:\n{text}"
-        res = model.generate_content(prompt)
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
         await msg.edit_text(f"🇩🇿 **الترجمة:**\n{res.text.strip()}")
     except Exception as e:
         await msg.edit_text(f"❌ حدث خطأ في الترجمة: {e}")
@@ -288,7 +299,10 @@ async def cmd_treng(message: Message):
     msg = await message.reply("⏳ Translating...")
     try:
         prompt = f"Translate this Arabic text to English naturally:\n{text}"
-        res = model.generate_content(prompt)
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
         await msg.edit_text(f"🇬🇧 **Translation:**\n{res.text.strip()}")
     except Exception as e:
         await msg.edit_text(f"❌ Error during translation: {e}")
@@ -314,7 +328,10 @@ async def cmd_exp(message: Message):
         3. Word forms: Noun, Verb, Adjective (نوع الكلمة وتصاريفها)
         Keep the output well-formatted with markdown and clear headers.
         """
-        res = model.generate_content(prompt)
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
         await msg.edit_text(res.text.strip())
     except Exception as e:
         await msg.edit_text(f"❌ حدث خطأ في الشرح: {e}")
@@ -346,7 +363,11 @@ async def cmd_txt(message: Message):
 
         img = Image.open(photo_path)
         prompt = "Extract and write down all readable text inside this image clearly. Return ONLY the extracted text."
-        res = model.generate_content([prompt, img])
+        
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[img, prompt]
+        )
 
         extracted_text = res.text.strip() if res.text else "لم أستطع قراءة أي نص."
         await status_msg.edit_text(f"📝 **النص المستخرج:**\n\n{extracted_text}")
