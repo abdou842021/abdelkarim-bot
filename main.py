@@ -11,6 +11,7 @@ from aiogram.types import (
     Message,
 )
 import edge_tts
+from deep_translator import GoogleTranslator
 
 # استيراد المكتبة الرسمية الجديدة لـ Gemini
 from google import genai
@@ -215,19 +216,18 @@ async def cmd_start(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
     WELCOME_MESSAGE = (
-    "Welcome to Abd al-Karim Bot for learning English! 🇩🇿🇬🇧🇺🇸\n\n"
-    "✨ **Available Commands:**\n"
-    "• `/sus` + Text : American Pronunciation 🇺🇸\n"
-    "• `/suk` + Text : British Pronunciation 🇬🇧\n"
-    "• `/trab` + Text : Translate to Arabic 🇩🇿\n"
-    "• `/treng` + Text : Translate to English 🇬🇧\n"
-    "• `/syn` + Word : Synonyms, Antonyms & Quick Forms ⚡\n"
-    "• `/cor` + Text : Grammar & Spelling Correction ✏️\n"
-    "• `/exp` + Word : Detailed Word Explanation & Forms 📚\n"
-    "• `/txt` (reply to an image) : Extract text from images 📝"
-)
-
-    await message.reply(welcome_text, parse_mode="Markdown")
+        "Welcome to Abd al-Karim Bot for learning English! 🇩🇿🇬🇧🇺🇸\n\n"
+        "✨ **Available Commands:**\n"
+        "• `/sus` + Text : American Pronunciation 🇺🇸\n"
+        "• `/suk` + Text : British Pronunciation 🇬🇧\n"
+        "• `/trab` + Text : Translate to Arabic 🇩🇿\n"
+        "• `/treng` + Text : Translate to English 🇬🇧\n"
+        "• `/syn` + Word : Synonyms, Antonyms & Quick Forms ⚡\n"
+        "• `/cor` + Text : Grammar & Spelling Correction ✏️\n"
+        "• `/exp` + Word : Detailed Word Explanation & Forms 📚\n"
+        "• `/txt` (reply to an image) : Extract text from images 📝"
+    )
+    await message.reply(WELCOME_MESSAGE, parse_mode="Markdown")
 
 
 # 6. النطق البريطاني /suk
@@ -303,82 +303,36 @@ async def cmd_cor(message: Message):
         await msg.edit_text(f"❌ حدث خطأ أثناء التصحيح: {e}")
 
 
-# 9. الترجمة إلى العربية /trab (مع علم الجزائر)
+# 9. الترجمة إلى العربية /trab (تعتمد على Google Translate المجاني)
 @dp.message(Command("trab"))
 async def cmd_trab(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
     text = await get_text_from_msg(message, message.text.replace("/trab", "").strip())
     if not text:
-        await message.reply("❌ اكتب نصاً أو رد على رسالة لترجمتها.")
+        await message.reply("Failed")
         return
-    
-    msg = await message.reply("⏳ جاري الترجمة...")
     try:
-        prompt = f"Translate this English text to Arabic naturally:\n{text}"
-        res = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt
-        )
-        await msg.edit_text(f"🇩🇿 **الترجمة:**\n{res.text.strip()}")
-    except Exception as e:
-        await msg.edit_text(f"❌ حدث خطأ في الترجمة: {e}")
-
-
-# 10. الترجمة إلى الإنجليزية /treng
-from aiogram import Router
-from aiogram.filters import Command
-from aiogram.types import Message
-from google import genai
-import os
-
-router = Router()
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-3.6-flash"
-
-@router.message(Command("trab"))
-async def translate_to_arabic(message: Message):
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        await message.answer("Failed")
-        return
-    
-    query = parts[1].strip()
-    prompt = f"Translate the following text strictly into Arabic. Provide ONLY the direct translation without any explanation, notes, or extra words: '{query}'"
-    
-    try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        translated_text = response.text.strip()
-        if not translated_text:
-            await message.answer("Failed")
-            return
-        await message.answer(translated_text)
+        translated = GoogleTranslator(source='auto', target='ar').translate(text)
+        await message.answer(translated if translated else "Failed")
     except Exception:
         await message.answer("Failed")
 
-@router.message(Command("treng"))
-async def translate_to_english(message: Message):
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
+
+# 10. الترجمة إلى الإنجليزية /treng (تعتمد على Google Translate المجاني)
+@dp.message(Command("treng"))
+async def cmd_treng(message: Message):
+    if not is_allowed(message.chat.id, message.from_user.id):
+        return
+    text = await get_text_from_msg(message, message.text.replace("/treng", "").strip())
+    if not text:
         await message.answer("Failed")
         return
-    
-    query = parts[1].strip()
-    prompt = f"Translate the following text strictly into English. Provide ONLY the direct translation without any explanation, notes, or extra words: '{query}'"
-    
     try:
-        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-        translated_text = response.text.strip()
-        if not translated_text:
-            await message.answer("Failed")
-            return
-        await message.answer(translated_text)
+        translated = GoogleTranslator(source='auto', target='en').translate(text)
+        await message.answer(translated if translated else "Failed")
     except Exception:
         await message.answer("Failed")
-
-def register_translator_handler(dp):
-    dp.include_router(router)
-
 
 
 # 11. الشرح والتحليل اللغوي /exp
@@ -409,8 +363,6 @@ async def cmd_exp(message: Message):
     except Exception as e:
         await msg.edit_text(f"❌ حدث خطأ في الشرح: {e}")
 
-
-# 12. تحويل النص داخل الصورة إلى كتابة /txt (بالرد أو إرسال الصورة مباشرة)
 
 # 12. تحويل النص داخل الصورة إلى كتابة /txt (مع تصغير الحجم لسرعة المعالجة)
 @dp.message(Command("txt"))
