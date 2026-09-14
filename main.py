@@ -1,6 +1,6 @@
 import asyncio
 import os
-import re
+import random
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.types import (
@@ -12,29 +12,23 @@ from aiogram.types import (
 )
 import edge_tts
 from deep_translator import GoogleTranslator
-
-# استيراد المكتبة الرسمية لـ Gemini
 from google import genai
 from PIL import Image
 
-# استدعاء ملف الإعدادات
 import config
 from quiz_game import register_quiz_handler
 
-# تهيئة عميل Gemini
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_NAME = "gemini-2.5-flash"
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
-# تسجيل معالج الألعاب
 register_quiz_handler(dp)
 
 
-# ====================== الفلاتر والمساعدات ======================
 def is_allowed(chat_id: int, user_id: int) -> bool:
-    if chat_id > 0:  # المحادثات الخاصة مسموحة دائماً
+    if chat_id > 0:
         return True
     return chat_id in config.ALLOWED_GROUP_IDS or user_id == config.OWNER_ID
 
@@ -67,7 +61,6 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     flag = "🇺🇸" if is_us else "🇬🇧"
     caption = f"{flag} {text}"
 
-    # الفونتيك يظهر أسفل النطق فقط إذا كانت 4 كلمات أو أقل
     if len(words) <= 4:
         accent_type = "American" if is_us else "British"
         prompt = (
@@ -91,9 +84,6 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
         os.remove(output_audio)
 
 
-# ====================== الأوامر والخصائص ======================
-
-# 0. الرد التلقائي عند ذكر اسم عبد الكريم أو مشتقاته
 @dp.message(F.text & ~F.text.startswith("/"))
 async def check_name_mention(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -104,16 +94,14 @@ async def check_name_mention(message: Message):
     
     if any(name in text for name in names):
         responses = [
-            "✨ ربي يفتحها في وجهك يا الغالي عبد الكريم، ويكتب لك التوفيق في كل خطوة تخطوها! 🤲",
-            "🌟 نعم يا سي عبد الكريم، ربي يبارك في عمرك ويحفظك ويجعل النجاح حليفك دائماً أينما وطأت قدمك! 🙏",
-            "🔥 أهلاً بسيد الرجال عبد الكريم! ربي يسهل عليك صعب الأمور ويجعل التوفيق طريقك الدائم! 🤲",
-            "💎 حيا الله الغالي عبد الكريم، ربي ينور دربك ويفتح عليك أبواب الخير الرزق الواسع! 🌟"
+            "✨ May success be your constant companion, Abdelkarim, and may every path you take lead to greatness! 🤲",
+            "🌟 Blessings upon you, dear Abdelkarim! May your dedication unlock doors to endless opportunities and unmatched success. 🙏",
+            "🔥 Keep shining bright, Abdelkarim! May Allah make your journey smooth and crown all your hard work with victory. 🤲",
+            "💎 Wishing you immense prosperity and peace, Abdelkarim. May your future be as brilliant as your ambitions! 🌟"
         ]
-        import random
         await message.reply(random.choice(responses))
 
 
-# 1. التنبيه عند إضافة البوت لمجموعة جديدة
 @dp.my_chat_member()
 async def bot_added_to_group(event):
     if event.new_chat_member.status in ["member", "administrator"]:
@@ -151,7 +139,6 @@ async def bot_added_to_group(event):
         )
 
 
-# 2. التفاعل مع أزرار القبول والرفض في الخاص
 @dp.callback_query(
     F.data.startswith("allow_") | F.data.startswith("disallow_")
 )
@@ -187,7 +174,6 @@ async def handle_group_decision(callback: CallbackQuery):
     await callback.answer()
 
 
-# 3. أمر عرض المجموعات الحالية وإدارتها (/groups)
 @dp.message(Command("groups"))
 async def list_groups(message: Message):
     if message.from_user.id != config.OWNER_ID:
@@ -213,7 +199,6 @@ async def list_groups(message: Message):
     await message.reply(text, reply_markup=keyboard, parse_mode="Markdown")
 
 
-# 4. الترحيب بالعضو الجديد والمسح التلقائي بعد 15 ثانية
 @dp.message(F.new_chat_members)
 async def welcome_members(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -226,7 +211,6 @@ async def welcome_members(message: Message):
         pass
 
 
-# 5. أمر البدء والمساعدة /start & /help
 @dp.message(Command("start"))
 @dp.message(Command("help"))
 async def cmd_start(message: Message):
@@ -235,8 +219,8 @@ async def cmd_start(message: Message):
     WELCOME_MESSAGE = (
         "Welcome to Abd al-Karim Bot for learning English! 🇩🇿🇬🇧🇺🇸\n\n"
         "✨ **Available Commands:**\n"
-        "• `/sus` + Text : American Pronunciation 🇺🇸\n"
-        "• `/suk` + Text : British Pronunciation 🇬🇧\n"
+        "• `/sus` + Text : American Pronunciation & IPA 🇺🇸\n"
+        "• `/suk` + Text : British Pronunciation & IPA 🇬🇧\n"
         "• `/trab` + Text : Translate to Arabic 🇩🇿\n"
         "• `/treng` + Text : Translate to English 🇬🇧\n"
         "• `/syn` + Word : Synonyms, Antonyms & Quick Forms ⚡\n"
@@ -248,7 +232,6 @@ async def cmd_start(message: Message):
     await message.reply(WELCOME_MESSAGE, parse_mode="Markdown")
 
 
-# 6. النطق البريطاني /suk
 @dp.message(Command("suk"))
 async def cmd_suk(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -259,7 +242,6 @@ async def cmd_suk(message: Message):
     await process_tts(message, text, config.VOICE_BRITISH, is_us=False)
 
 
-# 7. النطق الأمريكي /sus
 @dp.message(Command("sus"))
 async def cmd_sus(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -270,7 +252,6 @@ async def cmd_sus(message: Message):
     await process_tts(message, text, config.VOICE_AMERICAN, is_us=True)
 
 
-# 8. الحصول على مرادفات وأضداد وتصاريف سريعة /syn
 @dp.message(Command("syn"))
 async def cmd_syn(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -303,7 +284,6 @@ async def cmd_syn(message: Message):
         await message.reply("Failed")
 
 
-# 9. تصحيح الكتابة والقواعد /cor
 @dp.message(Command("cor"))
 async def cmd_cor(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -327,7 +307,6 @@ async def cmd_cor(message: Message):
         await message.reply("Failed")
 
 
-# 10. الترجمة إلى العربية /trab
 @dp.message(Command("trab"))
 async def cmd_trab(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -338,12 +317,14 @@ async def cmd_trab(message: Message):
         return
     try:
         translated = GoogleTranslator(source='auto', target='ar').translate(text)
-        await message.answer(translated if translated else "Failed")
+        if translated:
+            await message.reply(translated)
+        else:
+            await message.reply("Failed")
     except Exception:
-        await message.answer("Failed")
+        await message.reply("Failed")
 
 
-# 11. الترجمة إلى الإنجليزية /treng
 @dp.message(Command("treng"))
 async def cmd_treng(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -354,12 +335,14 @@ async def cmd_treng(message: Message):
         return
     try:
         translated = GoogleTranslator(source='auto', target='en').translate(text)
-        await message.answer(translated if translated else "Failed")
+        if translated:
+            await message.reply(translated)
+        else:
+            await message.reply("Failed")
     except Exception:
-        await message.answer("Failed")
+        await message.reply("Failed")
 
 
-# 12. الشرح والتحليل اللغوي /exp
 @dp.message(Command("exp"))
 async def cmd_exp(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -390,7 +373,6 @@ async def cmd_exp(message: Message):
         await message.reply("Failed")
 
 
-# 13. تحويل النص داخل الصورة إلى كتابة /txt
 @dp.message(Command("txt"))
 @dp.message(F.photo & F.caption.startswith("/txt"))
 async def cmd_txt(message: Message):
@@ -435,7 +417,6 @@ async def cmd_txt(message: Message):
             os.remove(photo_path)
 
 
-# 14. تحويل الصوت إلى نص /stt
 @dp.message(Command("stt"))
 @dp.message(F.voice | F.audio)
 async def cmd_stt(message: Message):
@@ -481,7 +462,6 @@ async def cmd_stt(message: Message):
             os.remove(audio_path)
 
 
-# تشغيل البوت
 async def main():
     print("Bot is running...")
     await dp.start_polling(bot)
