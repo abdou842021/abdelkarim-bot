@@ -74,7 +74,8 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
                 contents=prompt
             )
             phonetic = res.text.strip()
-            caption += f"\n🗣 [{phonetic}]"
+            if phonetic:
+                caption += f"\n🗣 [{phonetic}]"
         except Exception:
             pass
 
