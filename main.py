@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 import random
 from aiogram import Bot, Dispatcher, F, types
@@ -90,16 +91,69 @@ async def check_name_mention(message: Message):
         return
     
     text = message.text.lower()
-    names = ["عبد الكريم", "abdelkarim", "abdulkarim", "karim", "abdelkrim", "كريم", "سقمو"]
+    names = ["عبد الكريم", "abdelkarim", "abdulkarim", "karim", "abdelkrim", "كريم"]
     
     if any(name in text for name in names):
         responses = [
-            "✨ يَا سقمو، جعل الله التوفيق حليفك دائماً، وكل خطوة تخطوها تقودك إلى النجاح والتميز! 🤲",
-            "🌟 بارك الله فيك يا غالي سقمو! أسأل الله أن يفتح لك أبواب الرزق والتوفيق ويرفع قدرك. 🙏",
-            "🔥 استمر في التألق يا سقمو! وفقك الله وجعل طريقك مسهلاً ومليئاً بالإنجازات. 🤲",
-            "💎 أطال الله عمرك ورزقك السعادة والنجاح الباهر يا سقمو، مستقبلك سيكون مشرقاً بإذن الله! 🌟"
+            "✨ May success follow you everywhere, and may all your dreams come true!",
+            "🌟 Wishing you a wonderful day filled with peace, joy, and endless blessings!",
+            "🤲 May your hard work lead you to great achievements and bright victories!",
+            "💎 Sending you prayers for happiness, prosperity, and a brilliant future!",
+            "🙏 May Allah bless your path and open all doors of opportunity for you!",
+            "🚀 Wishing you continuous growth, good health, and immense success!",
+            "🌟 May your life be filled with wonderful moments and remarkable triumphs!",
+            "✨ Hoping your journey is smooth and your ambitions turn into reality!",
+            "🌿 May every single step you take bring you closer to your ultimate goals.",
+            "☀️ Wishing you strength, clarity, and boundless energy to conquer your day.",
+            "💫 May your heart find peace and your mind find brilliant inspiration today.",
+            "🍀 May fortune favor you and bring you wonderful surprises around every corner.",
+            "🕊️ Sending you positive vibes, calm energy, and deep heartfelt prayers.",
+            "⭐ May your dedication shine bright and inspire everyone around you.",
+            "🌊 May your path be clear, your burdens light, and your horizon completely bright."
         ]
         await message.reply(random.choice(responses))
+
+
+async def time_greetings_loop(bot: Bot):
+    algeria_tz = datetime.timezone(datetime.timedelta(hours=1))
+    last_morning_sent = None
+    last_night_sent = None
+    
+    while True:
+        now = datetime.datetime.now(algeria_tz)
+        current_date = now.date()
+        current_hour = now.hour
+        current_minute = now.minute
+        
+        # Morning greeting around 8:00 AM
+        if current_hour == 8 and current_minute == 0 and last_morning_sent != current_date:
+            morning_texts = [
+                "☀️ Good morning everyone! May this beautiful new day bring boundless energy, brilliant opportunities, and remarkable success to your lives. May all your hard work be richly rewarded, and may your hearts be filled with peace, positivity, and unwavering motivation throughout the entire day. Have a wonderfully blessed morning! ☕✨",
+                "🌅 Wishing you all a truly magnificent and radiant good morning! May the sun shine brightly on your paths, illuminating every goal and ambition you strive for today. Embrace every single moment with enthusiasm, confidence, and a grateful heart, knowing great things are destined for you. Stay inspired and keep shining! 💛"
+            ]
+            text = random.choice(morning_texts)
+            for gid in list(config.ALLOWED_GROUP_IDS):
+                try:
+                    await bot.send_message(gid, text)
+                except Exception:
+                    pass
+            last_morning_sent = current_date
+        
+        # Night greeting around 1:00 AM (01:00)
+        if current_hour == 1 and current_minute == 0 and last_night_sent != current_date:
+            night_texts = [
+                "🌙 Good night everyone! As the quiet hours settle in, it is time to gently lay down the day's worries and rest your mind and body. May you be blessed with deeply peaceful sleep, comforting dreams, and total restoration, waking up tomorrow ready to conquer new heights. Sweet dreams and sleep tight! ✨💤",
+                "🌌 Wishing you all a wonderfully calm and restful night! May the gentle embrace of sleep wash away all fatigue and bring tranquility to your spirit. Rest well, recharge your energy, and look forward to a brighter, more successful tomorrow. Good night and sweet dreams to you all! 💫😴"
+            ]
+            text = random.choice(night_texts)
+            for gid in list(config.ALLOWED_GROUP_IDS):
+                try:
+                    await bot.send_message(gid, text)
+                except Exception:
+                    pass
+            last_night_sent = current_date
+        
+        await asyncio.sleep(60)
 
 
 @dp.my_chat_member()
@@ -463,6 +517,7 @@ async def cmd_stt(message: Message):
 
 async def main():
     print("Bot is running...")
+    asyncio.create_task(time_greetings_loop(bot))
     await dp.start_polling(bot)
 
 
