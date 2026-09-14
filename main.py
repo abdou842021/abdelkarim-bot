@@ -319,6 +319,24 @@ async def cmd_txt(message: Message):
 
     if os.path.exists(photo_path):
         os.remove(photo_path)
+# ====================== أمر البداية والمساعدة ======================
+@dp.message(Command("start"))
+@dp.message(Command("help"))
+async def cmd_start(message: Message):
+    if not is_allowed(message.chat.id, message.from_user.id):
+        return
+    welcome_text = (
+        "أهلاً بك في بوت عبد الكريم لتعلم الإنجليزية! 🇬🇧🇺🇸\n\n"
+        "✨ **الأوامر المتاحة:**\n"
+        "• `/sus` + النص : نطق أمريكي 🇺🇸\n"
+        "• `/suk` + النص : نطق بريطاني 🇬🇧\n"
+        "• `/trab` + النص : ترجمة للعربية 🇸🇦\n"
+        "• `/treng` + النص : ترجمة للإنجليزية 🇬🇧\n"
+        "• `/cor` + النص : تصحيح الأخطاء والقواعد ✏️\n"
+        "• `/exp` + الكلمة : شرح وإعراب وتصاريف الكلمة 📚\n"
+        "• `/txt` (بالرد على صورة) : استخراج النص من الصور 📝"
+    )
+    await message.reply(welcome_text, parse_mode="Markdown")
 
 
 # تشغيل البوت
