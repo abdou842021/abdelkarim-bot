@@ -18,7 +18,16 @@ quiz_sessions = {}
 @router.message(Command("quiz"))
 async def cmd_quiz(message: Message, state: FSMContext):
     chat_id = message.chat.id
-    quiz_sessions[chat_id] = {"host": message.from_user.id}
+    user_id = message.from_user.id
+    
+    # التحقق مما إذا كان المستخدم هو مشرف أو مالك المجموعة (أو محادثة خاصة)
+    if message.chat.type in ["group", "supergroup"]:
+        member = await message.bot.get_chat_member(chat_id, user_id)
+        if member.status not in ["creator", "administrator"]:
+            await message.answer("⚠️ Oh, adorable visitor! Only the glorious group owner or administrators have the majestic privilege to launch this magnificent quiz challenge.")
+            return
+
+    quiz_sessions[chat_id] = {"host": user_id}
     
     await message.answer(
         "🤖 Welcome to the ultimate English challenge for 'Abd al-Karim' bot!\n\n"
@@ -130,3 +139,4 @@ async def start_game_execution(message: Message, state: FSMContext):
 
 def register_quiz_handler(dp):
     dp.include_router(router)
+
