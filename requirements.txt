@@ -1,7 +1,7 @@
-aiogram
-edge-tts
+aiogram==3.18.0
 google-genai
+edge-tts
+deep-translator
+Pillow
 
-python-dotenv
-pillow
 
