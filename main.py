@@ -66,7 +66,7 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
         accent_type = "American" if is_us else "British"
         prompt = (
             f"Provide ONLY the {accent_type} English IPA phonetic transcription "
-            f"for this text without any extra text, intro, or brackets: '{text}'"
+            f"for this text enclosed in standard brackets like [phonetic], with no extra text or intro: '{text}'"
         )
         try:
             res = client.models.generate_content(
@@ -75,7 +75,11 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
             )
             phonetic = res.text.strip()
             if phonetic:
-                caption += f"\n🗣 [{phonetic}]"
+                if not phonetic.startswith("["):
+                    phonetic = f"[{phonetic}"
+                if not phonetic.endswith("]"):
+                    phonetic = f"{phonetic}]"
+                caption += f"\n🗣 {phonetic}"
         except Exception:
             pass
 
@@ -126,7 +130,6 @@ async def time_greetings_loop(bot: Bot):
         current_hour = now.hour
         current_minute = now.minute
         
-        # Morning greeting around 8:00 AM
         if current_hour == 8 and current_minute == 0 and last_morning_sent != current_date:
             morning_texts = [
                 "☀️ Good morning everyone! May this beautiful new day bring boundless energy, brilliant opportunities, and remarkable success to your lives. May all your hard work be richly rewarded, and may your hearts be filled with peace, positivity, and unwavering motivation throughout the entire day. Have a wonderfully blessed morning! ☕✨",
@@ -140,7 +143,6 @@ async def time_greetings_loop(bot: Bot):
                     pass
             last_morning_sent = current_date
         
-        # Night greeting around 1:00 AM (01:00)
         if current_hour == 1 and current_minute == 0 and last_night_sent != current_date:
             night_texts = [
                 "🌙 Good night everyone! As the quiet hours settle in, it is time to gently lay down the day's worries and rest your mind and body. May you be blessed with deeply peaceful sleep, comforting dreams, and total restoration, waking up tomorrow ready to conquer new heights. Sweet dreams and sleep tight! ✨💤",
