@@ -3,10 +3,17 @@ import os
 import re
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.types import FSInputFile, Message
+from aiogram.types import (
+    CallbackQuery,
+    FSInputFile,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 import edge_tts
 import google.generativeai as genai
 from PIL import Image
+
 
 # استدعاء ملف الإعدادات
 import config
@@ -78,20 +85,105 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
 
 
 # 1. إذن تشغيل البوت في المجموعة (للأونر فقط)
-@dp.message(Command("allow"))
-async def cmd_allow(message: Message):
-    if message.from_user.id != config.OWNER_ID:
-        return
-    config.ALLOWED_GROUP_IDS.add(message.chat.id)
-    await message.reply("✅ تم السماح للبوت بالعمل في هذه المجموعة.")
+
+# 1. التنبيه عند إضافة البوت لمجموعة جديدة
+@dp.my_chat_member()
+async def bot_added_to_group(event):
+    if event.new_chat_member.status in ["member", "administrator"]:
+        group_title = event.chat.title
+        group_id = event.chat.id
+        added_by = event.from_user.full_name if event.from_user else "شخص ما"
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ قبول التفعيل",
+                        callback_data=f"allow_{group_id}",
+                    ),
+                    InlineKeyboardButton(
+                        text="❌ رفض وخروج",
+                        callback_data=f"disallow_{group_id}",
+                    ),
+                ]
+            ]
+        )
+
+        text = (
+            f"🔔 **طلب تفعيل جديد لمجموعة!**\n\n"
+            f"📌 **اسم المجموعة:** {group_title}\n"
+            f"🆔 **الآيدي:** `{group_id}`\n"
+            f"👤 **أُضيف بواسطة:** {added_by}\n\n"
+            f"هل تريد السماح للبوت بالعمل في هذه المجموعة؟"
+        )
+        await event.bot.send_message(
+            config.OWNER_ID,
+            text,
+            reply_markup=keyboard,
+            parse_mode="Markdown",
+        )
 
 
-@dp.message(Command("disallow"))
-async def cmd_disallow(message: Message):
+# 2. التفاعل مع أزرار القبول والرفض في الخاص
+@dp.callback_query(
+    F.data.startswith("allow_") | F.data.startswith("disallow_")
+)
+async def handle_group_decision(callback: CallbackQuery):
+    if callback.from_user.id != config.OWNER_ID:
+        return
+
+    action, group_id_str = callback.data.split("_")
+    group_id = int(group_id_str)
+
+    if action == "allow":
+        config.ALLOWED_GROUP_IDS.add(group_id)
+        await callback.message.edit_text(
+            f"{callback.message.text}\n\n✅ **الحالة:** تم التفعيل بنجاح."
+        )
+        try:
+            await callback.bot.send_message(
+                group_id,
+                "✅ أهلاً بكم! تم تفعيل البوت في هذه المجموعة بنجاح.",
+            )
+        except Exception:
+            pass
+    elif action == "disallow":
+        config.ALLOWED_GROUP_IDS.discard(group_id)
+        await callback.message.edit_text(
+            f"{callback.message.text}\n\n❌ **الحالة:** تم الرفض والخروج من المجموعة."
+        )
+        try:
+            await callback.bot.leave_chat(group_id)
+        except Exception:
+            pass
+
+    await callback.answer()
+
+
+# 3. أمر عرض المجموعات الحالية وإدارتها (/groups)
+@dp.message(Command("groups"))
+async def list_groups(message: Message):
     if message.from_user.id != config.OWNER_ID:
         return
-    config.ALLOWED_GROUP_IDS.discard(message.chat.id)
-    await message.reply("🚫 تم إيقاف البوت في هذه المجموعة.")
+
+    if not config.ALLOWED_GROUP_IDS:
+        await message.reply("📋 لا توجد مجموعات مفعلة حالياً.")
+        return
+
+    text = "📋 **المجموعات المفعلة حالياً:**\n\n"
+    buttons = []
+    for gid in list(config.ALLOWED_GROUP_IDS):
+        text += f"• `{gid}`\n"
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text=f"🚫 إيقاف {gid}", callback_data=f"disallow_{gid}"
+                )
+            ]
+        )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.reply(text, reply_markup=keyboard, parse_mode="Markdown")
 
 
 # 2. الترحيب بالحي والمسح التلقائي بعد 15 ثانية كي لا يثقل الجروب
