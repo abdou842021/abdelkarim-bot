@@ -14,7 +14,6 @@ import edge_tts
 import google.generativeai as genai
 from PIL import Image
 
-
 # استدعاء ملف الإعدادات
 import config
 
@@ -38,11 +37,10 @@ async def get_text_from_msg(message: Message, args: str) -> str:
     if args:
         return args.strip()
     if message.reply_to_message:
-        return (
-            message.reply_to_message.text
-            or message.reply_to_message.caption
-            or ""
-        )
+        reply = message.reply_to_message
+        text = reply.text or reply.caption
+        if text:
+            return text.strip()
     return ""
 
 
@@ -83,9 +81,6 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
 
 
 # ====================== الأوامر والخصائص ======================
-
-
-# 1. إذن تشغيل البوت في المجموعة (للأونر فقط)
 
 # 1. التنبيه عند إضافة البوت لمجموعة جديدة
 @dp.my_chat_member()
@@ -187,7 +182,7 @@ async def list_groups(message: Message):
     await message.reply(text, reply_markup=keyboard, parse_mode="Markdown")
 
 
-# 2. الترحيب بالحي والمسح التلقائي بعد 15 ثانية كي لا يثقل الجروب
+# 4. الترحيب بالحي والمسح التلقائي بعد 15 ثانية
 @dp.message(F.new_chat_members)
 async def welcome_members(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -200,7 +195,27 @@ async def welcome_members(message: Message):
         pass
 
 
-# 3. النطق البريطاني /suk
+# 5. أمر البدء والمساعدة /start
+@dp.message(Command("start"))
+@dp.message(Command("help"))
+async def cmd_start(message: Message):
+    if not is_allowed(message.chat.id, message.from_user.id):
+        return
+    welcome_text = (
+        "أهلاً بك في بوت عبد الكريم لتعلم الإنجليزية! 🇩🇿🇬🇧🇺🇸\n\n"
+        "✨ **الأوامر المتاحة:**\n"
+        "• `/sus` + النص : نطق أمريكي 🇺🇸\n"
+        "• `/suk` + النص : نطق بريطاني 🇬🇧\n"
+        "• `/trab` + النص : ترجمة للعربية 🇩🇿\n"
+        "• `/treng` + النص : ترجمة للإنجليزية 🇬🇧\n"
+        "• `/cor` + النص : تصحيح الأخطاء والقواعد ✏️\n"
+        "• `/exp` + الكلمة : شرح وإعراب وتصاريف الكلمة 📚\n"
+        "• `/txt` (بالرد على صورة) : استخراج النص من الصور 📝"
+    )
+    await message.reply(welcome_text, parse_mode="Markdown")
+
+
+# 6. النطق البريطاني /suk
 @dp.message(Command("suk"))
 async def cmd_suk(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -211,7 +226,7 @@ async def cmd_suk(message: Message):
     await process_tts(message, text, config.VOICE_BRITISH, is_us=False)
 
 
-# 4. النطق الأمريكي /sus
+# 7. النطق الأمريكي /sus
 @dp.message(Command("sus"))
 async def cmd_sus(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -222,121 +237,124 @@ async def cmd_sus(message: Message):
     await process_tts(message, text, config.VOICE_AMERICAN, is_us=True)
 
 
-# 5. تصحيح الكتابة والقواعد /cor بالذكاء الاصطناعي
+# 8. تصحيح الكتابة والقواعد /cor
 @dp.message(Command("cor"))
 async def cmd_cor(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
-    text = await get_text_from_msg(
-        message, message.text.replace("/cor", "").strip()
-    )
+    text = await get_text_from_msg(message, message.text.replace("/cor", "").strip())
     if not text:
         await message.reply("❌ اكتب نصاً أو رد على رسالة لتصحيحها.")
         return
 
-    prompt = f"Correct the spelling and grammar of this text. Return ONLY the corrected version without explanations:\n\n{text}"
-    res = model.generate_content(prompt)
-    await message.reply(f"✏️ **التصحيح:**\n{res.text.strip()}")
+    msg = await message.reply("⏳ جاري التصحيح...")
+    try:
+        prompt = f"Correct the spelling and grammar of this text. Return ONLY the corrected version:\n\n{text}"
+        res = model.generate_content(prompt)
+        await msg.edit_text(f"✏️ **التصحيح:**\n{res.text.strip()}")
+    except Exception as e:
+        await msg.edit_text(f"❌ حدث خطأ أثناء التصحيح: {e}")
 
 
-# 6. الترجمة إلى العربية /trab
+# 9. الترجمة إلى العربية /trab (مع علم الجزائر)
 @dp.message(Command("trab"))
 async def cmd_trab(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
-    text = await get_text_from_msg(
-        message, message.text.replace("/trab", "").strip()
-    )
+    text = await get_text_from_msg(message, message.text.replace("/trab", "").strip())
     if not text:
         await message.reply("❌ اكتب نصاً أو رد على رسالة لترجمتها.")
         return
-    prompt = f"Translate this English text to Arabic naturally and accurately:\n{text}"
-    res = model.generate_content(prompt)
-    await message.reply(f"🇸🇦 **الترجمة:**\n{res.text.strip()}")
+    
+    msg = await message.reply("⏳ جاري الترجمة...")
+    try:
+        prompt = f"Translate this English text to Arabic naturally:\n{text}"
+        res = model.generate_content(prompt)
+        await msg.edit_text(f"🇩🇿 **الترجمة:**\n{res.text.strip()}")
+    except Exception as e:
+        await msg.edit_text(f"❌ حدث خطأ في الترجمة: {e}")
 
 
-# 7. الترجمة إلى الإنجليزية /treng
+# 10. الترجمة إلى الإنجليزية /treng
 @dp.message(Command("treng"))
 async def cmd_treng(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
-    text = await get_text_from_msg(
-        message, message.text.replace("/treng", "").strip()
-    )
+    text = await get_text_from_msg(message, message.text.replace("/treng", "").strip())
     if not text:
         await message.reply("❌ اكتب نصاً أو رد على رسالة لترجمتها.")
         return
-    prompt = f"Translate this Arabic text to English naturally and accurately:\n{text}"
-    res = model.generate_content(prompt)
-    await message.reply(f"🇬🇧 **Translation:**\n{res.text.strip()}")
+
+    msg = await message.reply("⏳ Translating...")
+    try:
+        prompt = f"Translate this Arabic text to English naturally:\n{text}"
+        res = model.generate_content(prompt)
+        await msg.edit_text(f"🇬🇧 **Translation:**\n{res.text.strip()}")
+    except Exception as e:
+        await msg.edit_text(f"❌ Error during translation: {e}")
 
 
-# 8. الشرح والتحليل اللغوي /exp (مرادفات، أضداد، تصاريف)
+# 11. الشرح والتحليل اللغوي /exp
 @dp.message(Command("exp"))
 async def cmd_exp(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
-    text = await get_text_from_msg(
-        message, message.text.replace("/exp", "").strip()
-    )
+    text = await get_text_from_msg(message, message.text.replace("/exp", "").strip())
     if not text:
         await message.reply("❌ اكتب كلمة/جملة أو رد عليها لشرحها.")
         return
 
-    prompt = f"""
-    Analyze the word or phrase: '{text}'
-    Provide in Arabic and English:
-    1. Simple meaning (المعنى)
-    2. Synonyms & Antonyms (المرادفات والأضداد)
-    3. Word forms: Noun, Verb, Adjective (نوع الكلمة وتصاريفها)
-    Keep the output well-formatted with markdown and clear headers.
-    """
-    res = model.generate_content(prompt)
-    await message.reply(res.text.strip())
+    msg = await message.reply("🔍 جاري التحليل والشرح...")
+    try:
+        prompt = f"""
+        Analyze the word or phrase: '{text}'
+        Provide in Arabic and English:
+        1. Simple meaning (المعنى)
+        2. Synonyms & Antonyms (المرادفات والأضداد)
+        3. Word forms: Noun, Verb, Adjective (نوع الكلمة وتصاريفها)
+        Keep the output well-formatted with markdown and clear headers.
+        """
+        res = model.generate_content(prompt)
+        await msg.edit_text(res.text.strip())
+    except Exception as e:
+        await msg.edit_text(f"❌ حدث خطأ في الشرح: {e}")
 
 
-# 9. تحويل النص داخل الصورة إلى كتابة /txt بالرد على الصورة
+# 12. تحويل النص داخل الصورة إلى كتابة /txt (بالرد أو إرسال الصورة مباشرة)
 @dp.message(Command("txt"))
+@dp.message(F.photo & F.caption.startswith("/txt"))
 async def cmd_txt(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
-    if not message.reply_to_message or not message.reply_to_message.photo:
-        await message.reply("❌ يجب الرد على صورة باستخدام الأمر /txt")
+
+    photo = None
+    if message.photo:
+        photo = message.photo[-1]
+    elif message.reply_to_message and message.reply_to_message.photo:
+        photo = message.reply_to_message.photo[-1]
+
+    if not photo:
+        await message.reply("❌ يرجى الرد على صورة باستخدام الأمر `/txt` أو إرسال الصورة مكتوباً عليها `/txt`.")
         return
 
-    photo = message.reply_to_message.photo[-1]
+    status_msg = await message.reply("🔍 جاري قراءة النص من الصورة...")
     photo_path = f"img_{message.message_id}.jpg"
-    await bot.download(photo, destination=photo_path)
 
-    img = Image.open(photo_path)
-    prompt = (
-        "Extract and write down all readable text inside this image clearly."
-    )
-    res = model.generate_content([prompt, img])
+    try:
+        file = await bot.get_file(photo.file_id)
+        await bot.download_file(file.file_path, photo_path)
 
-    extracted_text = res.text.strip() if res.text else "لم أستطع قراءة أي نص."
-    await message.reply(f"📝 **النص المستخرج:**\n\n{extracted_text}")
+        img = Image.open(photo_path)
+        prompt = "Extract and write down all readable text inside this image clearly. Return ONLY the extracted text."
+        res = model.generate_content([prompt, img])
 
-    if os.path.exists(photo_path):
-        os.remove(photo_path)
-# ====================== أمر البداية والمساعدة ======================
-@dp.message(Command("start"))
-@dp.message(Command("help"))
-async def cmd_start(message: Message):
-    if not is_allowed(message.chat.id, message.from_user.id):
-        return
-    welcome_text = (
-        "أهلاً بك في بوت عبد الكريم لتعلم الإنجليزية! 🇬🇧🇺🇸\n\n"
-        "✨ **الأوامر المتاحة:**\n"
-        "• `/sus` + النص : نطق أمريكي 🇺🇸\n"
-        "• `/suk` + النص : نطق بريطاني 🇬🇧\n"
-        "• `/trab` + النص : ترجمة للعربية 🇸🇦\n"
-        "• `/treng` + النص : ترجمة للإنجليزية 🇬🇧\n"
-        "• `/cor` + النص : تصحيح الأخطاء والقواعد ✏️\n"
-        "• `/exp` + الكلمة : شرح وإعراب وتصاريف الكلمة 📚\n"
-        "• `/txt` (بالرد على صورة) : استخراج النص من الصور 📝"
-    )
-    await message.reply(welcome_text, parse_mode="Markdown")
+        extracted_text = res.text.strip() if res.text else "لم أستطع قراءة أي نص."
+        await status_msg.edit_text(f"📝 **النص المستخرج:**\n\n{extracted_text}")
+    except Exception as e:
+        await status_msg.edit_text(f"❌ حدث خطأ أثناء قراءة الصورة: {e}")
+    finally:
+        if os.path.exists(photo_path):
+            os.remove(photo_path)
 
 
 # تشغيل البوت
