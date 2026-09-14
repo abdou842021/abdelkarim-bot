@@ -214,20 +214,19 @@ async def welcome_members(message: Message):
 async def cmd_start(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
-    welcome_text = (
-        "أهلاً بك في بوت عبد الكريم لتعلم الإنجليزية! 🇩🇿🇬🇧🇺🇸\n\n"
-        "✨ **الأوامر المتاحة:**\n"
-        "• `/sus` + النص : نطق أمريكي 🇺🇸\n"
-        "• `/suk` + النص : نطق بريطاني 🇬🇧\n"
-        "• `/trab` + النص : ترجمة للعربية 🇩🇿\n"
-        
-        "• `/treng` + النص : ترجمة للإنجليزية 🇬🇧\n"
-        "• `/syn` + الكلمة : مرادفات وأضداد وتصاريف سريعة ⚡\n"
+    WELCOME_MESSAGE = (
+    "Welcome to Abd al-Karim Bot for learning English! 🇩🇿🇬🇧🇺🇸\n\n"
+    "✨ **Available Commands:**\n"
+    "• `/sus` + Text : American Pronunciation 🇺🇸\n"
+    "• `/suk` + Text : British Pronunciation 🇬🇧\n"
+    "• `/trab` + Text : Translate to Arabic 🇩🇿\n"
+    "• `/treng` + Text : Translate to English 🇬🇧\n"
+    "• `/syn` + Word : Synonyms, Antonyms & Quick Forms ⚡\n"
+    "• `/cor` + Text : Grammar & Spelling Correction ✏️\n"
+    "• `/exp` + Word : Detailed Word Explanation & Forms 📚\n"
+    "• `/txt` (reply to an image) : Extract text from images 📝"
+)
 
-        "• `/cor` + النص : تصحيح الأخطاء والقواعد ✏️\n"
-        "• `/exp` + الكلمة : شرح وإعراب وتصاريف الكلمة 📚\n"
-        "• `/txt` (بالرد على صورة) : استخراج النص من الصور 📝"
-    )
     await message.reply(welcome_text, parse_mode="Markdown")
 
 
@@ -327,25 +326,59 @@ async def cmd_trab(message: Message):
 
 
 # 10. الترجمة إلى الإنجليزية /treng
-@dp.message(Command("treng"))
-async def cmd_treng(message: Message):
-    if not is_allowed(message.chat.id, message.from_user.id):
-        return
-    text = await get_text_from_msg(message, message.text.replace("/treng", "").strip())
-    if not text:
-        await message.reply("❌ اكتب نصاً أو رد على رسالة لترجمتها.")
-        return
+from aiogram import Router
+from aiogram.filters import Command
+from aiogram.types import Message
+from google import genai
+import os
 
-    msg = await message.reply("⏳ Translating...")
+router = Router()
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+MODEL_NAME = "gemini-3.6-flash"
+
+@router.message(Command("trab"))
+async def translate_to_arabic(message: Message):
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Failed")
+        return
+    
+    query = parts[1].strip()
+    prompt = f"Translate the following text strictly into Arabic. Provide ONLY the direct translation without any explanation, notes, or extra words: '{query}'"
+    
     try:
-        prompt = f"Translate this Arabic text to English naturally:\n{text}"
-        res = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt
-        )
-        await msg.edit_text(f"🇬🇧 **Translation:**\n{res.text.strip()}")
-    except Exception as e:
-        await msg.edit_text(f"❌ Error during translation: {e}")
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        translated_text = response.text.strip()
+        if not translated_text:
+            await message.answer("Failed")
+            return
+        await message.answer(translated_text)
+    except Exception:
+        await message.answer("Failed")
+
+@router.message(Command("treng"))
+async def translate_to_english(message: Message):
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Failed")
+        return
+    
+    query = parts[1].strip()
+    prompt = f"Translate the following text strictly into English. Provide ONLY the direct translation without any explanation, notes, or extra words: '{query}'"
+    
+    try:
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        translated_text = response.text.strip()
+        if not translated_text:
+            await message.answer("Failed")
+            return
+        await message.answer(translated_text)
+    except Exception:
+        await message.answer("Failed")
+
+def register_translator_handler(dp):
+    dp.include_router(router)
+
 
 
 # 11. الشرح والتحليل اللغوي /exp
