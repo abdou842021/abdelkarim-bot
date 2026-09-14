@@ -90,14 +90,14 @@ async def check_name_mention(message: Message):
         return
     
     text = message.text.lower()
-    names = ["عبد الكريم", "abdelkarim", "abdulkarim", "karim", "abdelkrim", "كريم"]
+    names = ["عبد الكريم", "abdelkarim", "abdulkarim", "karim", "abdelkrim", "كريم", "سقمو"]
     
     if any(name in text for name in names):
         responses = [
-            "✨ May success be your constant companion, Abdelkarim, and may every path you take lead to greatness! 🤲",
-            "🌟 Blessings upon you, dear Abdelkarim! May your dedication unlock doors to endless opportunities and unmatched success. 🙏",
-            "🔥 Keep shining bright, Abdelkarim! May Allah make your journey smooth and crown all your hard work with victory. 🤲",
-            "💎 Wishing you immense prosperity and peace, Abdelkarim. May your future be as brilliant as your ambitions! 🌟"
+            "✨ يَا سقمو، جعل الله التوفيق حليفك دائماً، وكل خطوة تخطوها تقودك إلى النجاح والتميز! 🤲",
+            "🌟 بارك الله فيك يا غالي سقمو! أسأل الله أن يفتح لك أبواب الرزق والتوفيق ويرفع قدرك. 🙏",
+            "🔥 استمر في التألق يا سقمو! وفقك الله وجعل طريقك مسهلاً ومليئاً بالإنجازات. 🤲",
+            "💎 أطال الله عمرك ورزقك السعادة والنجاح الباهر يا سقمو، مستقبلك سيكون مشرقاً بإذن الله! 🌟"
         ]
         await message.reply(random.choice(responses))
 
@@ -223,7 +223,7 @@ async def cmd_start(message: Message):
         "• `/suk` + Text : British Pronunciation & IPA 🇬🇧\n"
         "• `/trab` + Text : Translate to Arabic 🇩🇿\n"
         "• `/treng` + Text : Translate to English 🇬🇧\n"
-        "• `/syn` + Word : Synonyms, Antonyms & Quick Forms ⚡\n"
+        "• `/syn` + Word : Synonyms, Antonyms & Example ⚡\n"
         "• `/cor` + Text : Grammar & Spelling Correction ✏️\n"
         "• `/exp` + Word : Detailed Word Explanation & Forms 📚\n"
         "• `/txt` (reply to an image) : Extract text from images 📝\n"
@@ -263,14 +263,13 @@ async def cmd_syn(message: Message):
 
     try:
         prompt = f"""
-        Provide a very concise summary (maximum 5-6 lines) for the word/phrase: '{text}'.
-        Structure the output in clean Arabic/English as follows:
-        - المعنى (Meaning)
-        - نوع الكلمة والتصاريف (Noun, Verb, Adj forms)
-        - المرادفات (Synonyms: 2-3 words)
-        - الأضداد (Antonyms: 2-3 words)
-        - مثال قصير (Short example sentence)
-        Keep it extremely brief and direct.
+        Provide information for the word or phrase: '{text}'.
+        You MUST provide:
+        1. Meaning (المعنى بالعربية)
+        2. Synonyms (المرادفات: 2-3 words)
+        3. Antonyms (الأضداد: 2-3 words)
+        4. Short example sentence with translation (مثال قصير مع الترجمة)
+        Keep it concise, clear, and well-structured using markdown.
         """
         res = client.models.generate_content(
             model=MODEL_NAME,
