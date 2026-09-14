@@ -3,6 +3,7 @@ google-genai
 edge-tts
 deep-translator
 Pillow
+python-dotenv
 
 
 
