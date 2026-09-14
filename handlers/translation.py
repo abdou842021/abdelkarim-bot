@@ -43,8 +43,9 @@ async def translate_to_arabic(message: Message):
             f"🇩🇿 Arabic:\n{translated}"
         )
 
-    except Exception:
-        await message.reply(
+  except Exception as e:
+    print(f"TRANSLATION ERROR: {e}")
+    await message.reply(
             "❌ Translation failed. Please try again."
         )
 
@@ -70,7 +71,8 @@ async def translate_to_english(message: Message):
             f"🇬🇧 English:\n{translated}"
         )
 
-    except Exception:
-        await message.reply(
+ except Exception as e:
+    print(f"TRANSLATION ERROR: {e}")
+    await message.reply(
             "❌ Translation failed. Please try again."
 )
