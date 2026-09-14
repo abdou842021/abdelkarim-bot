@@ -1,0 +1,8 @@
+aiogram
+edge-tts
+deep-translator
+eng-to-ipa
+google-genai
+Pillow
+python-dotenv
+Flask
