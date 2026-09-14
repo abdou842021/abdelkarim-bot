@@ -6,3 +6,4 @@ google-genai
 Pillow
 python-dotenv
 Flask
+requests
