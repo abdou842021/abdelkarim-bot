@@ -1,135 +1,132 @@
-import asyncio
 import random
-from telebot.async_telebot import AsyncTelebot
+import asyncio
+from aiogram import Router, F
+from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import Command
 
-# ملاحظة: يمكنك استيراد هذا الأمر وضمه لملفك الرئيسي main.py
-# عبر دالة register_handlers(bot)
+class QuizStates(StatesGroup):
+    waiting_for_words = State()
+    waiting_for_count = State()
+    waiting_for_timer = State()
+    ready_to_start = State()
 
-def register_quiz_handler(bot: AsyncTelebot):
+router = Router()
+quiz_sessions = {}
+
+@router.message(Command("quiz"))
+async def cmd_quiz(message: Message, state: FSMContext):
+    chat_id = message.chat.id
+    quiz_sessions[chat_id] = {"host": message.from_user.id}
     
-    # تخزين مؤقت لحالة اللعبة لكل مجموعة/محادثة
-    game_sessions = {}
+    await message.answer(
+        "🤖 Welcome to the ultimate English challenge for 'Abd al-Karim' bot!\n\n"
+        "Send your list of new words right now (each word on a new line) so I can craft wonderful questions for you:"
+    )
+    await state.set_state(QuizStates.waiting_for_words)
 
-    @bot.message_handler(commands=['quiz'])
-    async def start_quiz_command(message):
-        chat_id = message.chat.id
-        game_sessions[chat_id] = {"step": "waiting_words", "host": message.from_user.id}
-        await bot.send_message(
-            chat_id, 
-            "🤖 أهلاً بك في تحدي الكلمات! أرسل لي الآن قائمة الـ 20 كلمة الجديدة التي حفظتموها لنبدأ تجهيز الأسئلة:"
-        )
+@router.message(QuizStates.waiting_for_words)
+async def process_words(message: Message, state: FSMContext):
+    chat_id = message.chat.id
+    words = [w.strip() for w in message.text.split('\n') if w.strip()]
+    
+    if len(words) < 2:
+        await message.answer("⚠️ Please send at least two wonderful words so I can build the quiz!")
+        return
 
-    @bot.message_handler(func=lambda msg: msg.chat.id in game_sessions and game_sessions[msg.chat.id]["step"] == "waiting_words")
-    async def receive_words(message):
-        chat_id = message.chat.id
-        words_text = message.text
-        
-        # تقسيم الكلمات المدخلة
-        words_list = [w.strip() for w in words_text.split('\n') if w.strip()]
-        if len(words_list) < 2:
-            await bot.send_message(chat_id, "⚠️ يرجى إرسال عدد كافٍ من الكلمات (كلمتين على الأقل) لكي أتمكن من صناعة الأسئلة.")
-            return
+    quiz_sessions[chat_id]["words"] = words
+    await message.answer(f"✨ Magnificent! I have received {len(words)} stellar words.\n\nHow many questions would you like to conquer in this quiz? (Just send a number, like 5 or 10):")
+    await state.set_state(QuizStates.waiting_for_count)
 
-        game_sessions[chat_id]["words"] = words_list
-        game_sessions[chat_id]["step"] = "waiting_question_count"
-        
-        await bot.send_message(
-            chat_id, 
-            f"✅ استلمت {len(words_list)} كلمة.\nكم عدد الأسئلة التي تريدها في هذا الاختبار؟ (اكتب الرقم فقط، مثلاً: 5 أو 10)"
-        )
+@router.message(QuizStates.waiting_for_count)
+async def process_count(message: Message, state: FSMContext):
+    chat_id = message.chat.id
+    try:
+        count = int(message.text.strip())
+        max_w = len(quiz_sessions[chat_id]["words"])
+        if count > max_w:
+            count = max_w
+        quiz_sessions[chat_id]["count"] = count
+    except ValueError:
+        await message.answer("⚠️ Oops! Please send a valid numeric value.")
+        return
 
-    @bot.message_handler(func=lambda msg: msg.chat.id in game_sessions and game_sessions[msg.chat.id]["step"] == "waiting_question_count")
-    async def receive_question_count(message):
-        chat_id = message.chat.id
-        try:
-            count = int(message.text)
-            max_words = len(game_sessions[chat_id]["words"])
-            if count > max_words:
-                count = max_words
-            game_sessions[chat_id]["q_count"] = count
-        except ValueError:
-            await bot.send_message(chat_id, "⚠️ خطأ! يرجى إرسال رقم صحيح فقط.")
-            return
+    await message.answer(
+        "⏱️ Choose your adorable timer duration for each question in seconds:\n"
+        "Type only one of these numbers: **10**, **15**, or **20**"
+    )
+    await state.set_state(QuizStates.waiting_for_timer)
 
-        game_sessions[chat_id]["step"] = "waiting_timer"
-        await bot.send_message(
-            chat_id, 
-            "⏱️ اختر مدة الإجابة لكل سؤال (بالثواني):\nاختر واحداً من هذه الأرقام: **10** أو **15** أو **20**"
-        )
+@router.message(QuizStates.waiting_for_timer)
+async def process_timer(message: Message, state: FSMContext):
+    chat_id = message.chat.id
+    text = message.text.strip()
+    
+    if text not in ["10", "15", "20"]:
+        await message.answer("⚠️ Please choose a valid timer choice: exactly 10, 15, or 20 seconds.")
+        return
 
-    @bot.message_handler(func=lambda msg: msg.chat.id in game_sessions and game_sessions[msg.chat.id]["step"] == "waiting_timer")
-    async def receive_timer(message):
-        chat_id = message.chat.id
-        text = message.text.strip()
-        if text not in ["10", "15", "20"]:
-            await bot.send_message(chat_id, "⚠️ يرجى اختيار إحدى المدد المحددة بدقة: 10 أو 15 أو 20 ثانية.")
-            return
+    quiz_sessions[chat_id]["timer"] = int(text)
+    
+    await message.answer(
+        f"🎯 **Your perfect quiz is fully prepared!**\n"
+        f"- Total Questions: {quiz_sessions[chat_id]['count']}\n"
+        f"- Question Timer: {quiz_sessions[chat_id]['timer']} seconds\n\n"
+        f"Type **بدء الاختبار** right now to start the game!"
+    )
+    await state.set_state(QuizStates.ready_to_start)
 
-        game_sessions[chat_id]["timer"] = int(text)
-        game_sessions[chat_id]["step"] = "ready_to_start"
-        
-        await bot.send_message(
-            chat_id, 
-            f"🎯 **تم تجهيز الاختبار بنجاح!**\n- عدد الأسئلة: {game_sessions[chat_id]['q_count']}\n- وقت السؤال: {game_sessions[chat_id]['timer']} ثوانٍ\n\nاكتب **بدء الاختبار** لننطلق الآن!"
-        )
+@router.message(QuizStates.ready_to_start, F.text == "بدء الاختبار")
+async def start_game_execution(message: Message, state: FSMContext):
+    chat_id = message.chat.id
+    session = quiz_sessions.get(chat_id)
+    
+    if not session:
+        await message.answer("⚠️ No active session found. Please launch it using /quiz")
+        await state.clear()
+        return
 
-    @bot.message_handler(func=lambda msg: msg.text == "بدء الاختبار" and msg.chat.id in game_sessions and game_sessions[msg.chat.id]["step"] == "ready_to_start")
-    async def run_quiz_game(message):
-        chat_id = message.chat.id
-        session = game_sessions[chat_id]
-        words = session["words"]
-        q_count = session["q_count"]
-        timer = session["timer"]
+    words = session["words"]
+    count = session["count"]
+    timer = session["timer"]
 
-        # اختيار أسئلة عشوائية وتوليد 4 اختيارات ذكية
-        selected_words = random.sample(words, min(q_count, len(words)))
-        scores = {}  # لتخزين نقاط المشاركين {user_id: {"name": name, "points": score}}
+    selected = random.sample(words, min(count, len(words)))
 
-        await bot.send_message(chat_id, "🚀 **البداية الآن! استعدوا...**")
-        await asyncio.sleep(2)
+    await message.answer("🚀 **The game is on! Get ready for absolute brilliance...**")
+    await asyncio.sleep(2)
 
-        for i, target_word in enumerate(selected_words, 1):
-            # محاكاة توليد الاختيارات عبر الذكاء الاصطناعي (معالج الكلمات)
-            wrong_options = [w for w in words if w != target_word]
-            distractors = random.sample(wrong_options, min(3, len(wrong_options)))
-            options = distractors + [target_word]
-            random.shuffle(options)
-            correct_index = options.index(target_word)
+    for i, target in enumerate(selected, 1):
+        wrongs = [w for w in words if w != target]
+        distractors = random.sample(wrongs, min(3, len(wrongs)))
+        options = distractors + [target]
+        random.shuffle(options)
+        correct_idx = options.index(target)
 
-            # إرسال السؤال عبر Poll تيليجرام بنمط كويز
-            poll_msg = await bot.send_poll(
-                chat_id=chat_id,
-                question=Jeux_Question_Format(i, target_word),
-                options=options,
-                type="quiz",
-                correct_option_id=correct_index,
-                is_anonymous=False,
-                open_period=timer
-            )
-            
-            # الانتظار حتى ينتهي وقت السؤال المحدد
-            await asyncio.sleep(timer + 2)
-
-        # حساب النتائج والترتيب النهائي (Leaderboard)
-        # ملاحظة: في بيئة العمل الحقيقية يتم جمع إجابات الـ Poll عبر حدث poll_answer
-        # هنا نموذج محاكاة للترتيب وإعلان الفائزين:
-        
-        await bot.send_message(chat_id, "🏁 **انتهى الاختبار! جاري حساب النتائج والترتيب...**")
-        await asyncio.sleep(2)
-
-        # رسالة التشجيع بالإنجليزية للبقية والترتيب للأوائل
-        result_text = (
-            "🏆 **Leaderboard - لوحة الترتيب:**\n\n"
-            "🥇 **1st Place:** ممتاز جداً! أداء خارق، استمر هكذا.\n"
-            "🥈 **2nd Place:** رائع! كنت قريب جداً من المركز الأول.\n"
-            "🥉 **3rd Place:** جيد جداً، حافظ على مستواك.\n\n"
-            "💡 *To the rest of the players: Please review your lessons and try harder next time! You can do it!*"
+        await message.bot.send_poll(
+            chat_id=chat_id,
+            question=f"Question {i}: What is the marvelous meaning for '{target}'?",
+            options=options,
+            type="quiz",
+            correct_option_id=correct_idx,
+            is_anonymous=False,
+            open_period=timer
         )
         
-        await bot.send_message(chat_id, result_text)
-        
-        # مسح الجلسة بعد الانتهاء
-        del game_sessions[chat_id]
+        await asyncio.sleep(timer + 2)
 
-    def Jeux_Question_Format(index, word):
-        return f"Question {index}: What is the correct translation or context for the word: '{word}'?"
+    await message.answer(
+        "🏁 **The brilliant challenge has concluded!**\n\n"
+        "🏆 **The Glorious Leaderboard & Rankings:**\n\n"
+        "🥇 **1st Place:** Absolutely wonderful! You are a phenomenal linguistic genius, a true masterpiece of performance!\n"
+        "🥈 **2nd Place:** Marvelous work! Adorable effort, you were exceptionally close to absolute perfection!\n"
+        "🥉 **3rd Place:** Splendid job! A truly fantastic display of dedication!\n\n"
+        "💡 *To the rest of the adorable players: Please review your marvelous lessons and shine brighter next time! You are completely unstoppable!*"
+    )
+    
+    await state.clear()
+    if chat_id in quiz_sessions:
+        del quiz_sessions[chat_id]
+
+def register_quiz_handler(dp):
+    dp.include_router(router)
