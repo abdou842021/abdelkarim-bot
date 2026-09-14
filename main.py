@@ -21,7 +21,8 @@ import config
 
 # تهيئة عميل Gemini الجديد
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-2.5-flash"
+
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 
