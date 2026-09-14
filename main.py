@@ -26,10 +26,10 @@ MODEL_NAME = "gemini-3.6-flash"
 
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
-register_quiz_handler(dp)
-
 dp = Dispatcher()
 
+
+register_quiz_handler(dp)
 
 # ====================== الفلاتر والمساعدات ======================
 def is_allowed(chat_id: int, user_id: int) -> bool:
