@@ -18,6 +18,7 @@ from PIL import Image
 
 # استدعاء ملف الإعدادات
 import config
+from quiz_game import register_quiz_handler
 
 # تهيئة عميل Gemini الجديد
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -25,6 +26,7 @@ MODEL_NAME = "gemini-3.6-flash"
 
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
+register_quiz_handler(dp)
 
 dp = Dispatcher()
 
