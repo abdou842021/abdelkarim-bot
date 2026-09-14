@@ -46,7 +46,6 @@ async def get_text_from_msg(message: Message, args: str) -> str:
             return text.strip()
     return ""
 
-
 async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     if not text:
         await message.reply("❌ يرجى كتابة نص أو الرد على رسالة.")
@@ -66,9 +65,13 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     flag = "🇺🇸" if is_us else "🇬🇧"
     caption = f"{flag} {text}"
 
-    # إذا كانت 4 كلمات أو أقل يضيف الفونتيك (IPA)
+    # التعديل هنا: الفونتيك يظهر فقط إذا كانت 4 كلمات أو أقل وحسب اللهجة
     if len(words) <= 4:
-        prompt = f"Provide ONLY the IPA phonetic transcription for this text without any extra text or intro: '{text}'"
+        accent_type = "American" if is_us else "British"
+        prompt = (
+            f"Provide ONLY the {accent_type} English IPA phonetic transcription "
+            f"for this text without any extra text or intro: '{text}'"
+        )
         try:
             res = client.models.generate_content(
                 model=MODEL_NAME,
@@ -84,6 +87,8 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
 
     if os.path.exists(output_audio):
         os.remove(output_audio)
+
+
 
 
 # ====================== الأوامر والخصائص ======================
@@ -213,7 +218,10 @@ async def cmd_start(message: Message):
         "• `/sus` + النص : نطق أمريكي 🇺🇸\n"
         "• `/suk` + النص : نطق بريطاني 🇬🇧\n"
         "• `/trab` + النص : ترجمة للعربية 🇩🇿\n"
+        
         "• `/treng` + النص : ترجمة للإنجليزية 🇬🇧\n"
+        "• `/syn` + الكلمة : مرادفات وأضداد وتصاريف سريعة ⚡\n"
+
         "• `/cor` + النص : تصحيح الأخطاء والقواعد ✏️\n"
         "• `/exp` + الكلمة : شرح وإعراب وتصاريف الكلمة 📚\n"
         "• `/txt` (بالرد على صورة) : استخراج النص من الصور 📝"
@@ -242,6 +250,35 @@ async def cmd_sus(message: Message):
     )
     await process_tts(message, text, config.VOICE_AMERICAN, is_us=True)
 
+# أمر الحصول على مرادفات وأضداد وتصاريف سريعة /syn
+@dp.message(Command("syn"))
+async def cmd_syn(message: Message):
+    if not is_allowed(message.chat.id, message.from_user.id):
+        return
+    text = await get_text_from_msg(message, message.text.replace("/syn", "").strip())
+    if not text:
+        await message.reply("❌ اكتب كلمة أو رد عليها لاستخراج المرادفات والأضداد.")
+        return
+
+    msg = await message.reply("🔍 جاري الجلب...")
+    try:
+        prompt = f"""
+        Provide a very concise summary (maximum 5-6 lines) for the word/phrase: '{text}'.
+        Structure the output in clean Arabic/English as follows:
+        - المعنى (Meaning)
+        - نوع الكلمة والتصاريف (Noun, Verb, Adj forms)
+        - المرادفات (Synonyms: 2-3 words)
+        - الأضداد (Antonyms: 2-3 words)
+        - مثال قصير (Short example sentence)
+        Keep it extremely brief and direct.
+        """
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt
+        )
+        await msg.edit_text(res.text.strip())
+    except Exception as e:
+        await msg.edit_text(f"❌ حدث خطأ: {e}")
 
 # 8. تصحيح الكتابة والقواعد /cor
 @dp.message(Command("cor"))
