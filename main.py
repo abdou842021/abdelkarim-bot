@@ -22,7 +22,8 @@ import config
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-bot = Bot(token=config.BOT_TOKEN)
+bot = Bot(token=os.getenv("BOT_TOKEN"))
+
 dp = Dispatcher()
 
 
