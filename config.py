@@ -1,54 +1,14 @@
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+OWNER_ID = int(os.getenv("OWNER_ID", "123456789"))
 
-# ====================== BOT CREDENTIALS ======================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", "0"))
-
-# ====================== BOT INFO ======================
-BOT_NAME = "Abdelkarim"
-BOT_USERNAME = "AbdelkarimBot"
-
-# ====================== LIMITS ======================
-MAX_WORDS = 250
-
-# ====================== ALLOWED GROUPS ======================
+# مجموعات مفعلة مبدئياً
 ALLOWED_GROUP_IDS = set()
 
-# ====================== TTS VOICES ======================
+# إعدادات عامة
+MAX_WORDS = 50
+VOICE_AMERICAN = "en-US-AriaNeural"
 VOICE_BRITISH = "en-GB-SoniaNeural"
-VOICE_AMERICAN = "en-US-JennyNeural"
-
-# ====================== NAME TRIGGERS ======================
-NAME_TRIGGERS = [
-    "كريم",
-    "عبد الكريم",
-    "عبدالكريم",
-    "karim",
-    "abdelkarim",
-    "abdlkarim",
-    "abdlkrim",
-    "abdulkarim",
-    "abdel krim",
-    "abdel-karim",
-    "abd el karim",
-]
-
-# ====================== MESSAGES ======================
-WELCOME_NEW_MEMBER = (
-    "Welcome to the group! 👋\n"
-    "Glad to have you here."
-)
-
-THANK_INVITATION = "Thank you for the invitation! 😊"
-
-NAME_REPLIES = [
-    "Thanks! 😊",
-    "You're welcome!",
-    "Appreciate it!",
-    "Thanks a lot!",
-    "Okay, noted 👍",
-    "Thank you!",
-]
+WELCOME_NEW_MEMBER = "Welcome to the group! 🎉 Enjoy learning English with us."
