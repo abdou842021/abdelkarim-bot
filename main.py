@@ -13,7 +13,7 @@ from aiogram.types import (
 import edge_tts
 from deep_translator import GoogleTranslator
 
-# استيراد المكتبة الرسمية الجديدة لـ Gemini
+# استيراد المكتبة الرسمية لـ Gemini
 from google import genai
 from PIL import Image
 
@@ -21,20 +21,20 @@ from PIL import Image
 import config
 from quiz_game import register_quiz_handler
 
-# تهيئة عميل Gemini الجديد
+# تهيئة عميل Gemini
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-3.6-flash"
-
+MODEL_NAME = "gemini-2.5-flash"
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
-
+# تسجيل معالج الألعاب
 register_quiz_handler(dp)
+
 
 # ====================== الفلاتر والمساعدات ======================
 def is_allowed(chat_id: int, user_id: int) -> bool:
-    if chat_id > 0:  # المحادثات الخاصة (Private) مسموحة دائماً
+    if chat_id > 0:  # المحادثات الخاصة مسموحة دائماً
         return True
     return chat_id in config.ALLOWED_GROUP_IDS or user_id == config.OWNER_ID
 
@@ -49,16 +49,15 @@ async def get_text_from_msg(message: Message, args: str) -> str:
             return text.strip()
     return ""
 
+
 async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     if not text:
-        await message.reply("❌ يرجى كتابة نص أو الرد على رسالة.")
+        await message.reply("Failed")
         return
 
     words = text.split()
     if len(words) > config.MAX_WORDS:
-        await message.reply(
-            f"⚠️ النص طويل جداً! الحد الأقصى هو {config.MAX_WORDS} كلمة."
-        )
+        await message.reply("Failed")
         return
 
     output_audio = f"tts_{message.message_id}.mp3"
@@ -68,12 +67,12 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
     flag = "🇺🇸" if is_us else "🇬🇧"
     caption = f"{flag} {text}"
 
-    # التعديل هنا: الفونتيك يظهر فقط إذا كانت 4 كلمات أو أقل وحسب اللهجة
+    # الفونتيك يظهر أسفل النطق فقط إذا كانت 4 كلمات أو أقل
     if len(words) <= 4:
         accent_type = "American" if is_us else "British"
         prompt = (
             f"Provide ONLY the {accent_type} English IPA phonetic transcription "
-            f"for this text without any extra text or intro: '{text}'"
+            f"for this text without any extra text, intro, or brackets: '{text}'"
         )
         try:
             res = client.models.generate_content(
@@ -92,9 +91,27 @@ async def process_tts(message: Message, text: str, voice: str, is_us: bool):
         os.remove(output_audio)
 
 
-
-
 # ====================== الأوامر والخصائص ======================
+
+# 0. الرد التلقائي عند ذكر اسم عبد الكريم أو مشتقاته
+@dp.message(F.text & ~F.text.startswith("/"))
+async def check_name_mention(message: Message):
+    if not is_allowed(message.chat.id, message.from_user.id):
+        return
+    
+    text = message.text.lower()
+    names = ["عبد الكريم", "abdelkarim", "abdulkarim", "karim", "abdelkrim", "كريم"]
+    
+    if any(name in text for name in names):
+        responses = [
+            "✨ ربي يفتحها في وجهك يا الغالي عبد الكريم، ويكتب لك التوفيق في كل خطوة تخطوها! 🤲",
+            "🌟 نعم يا سي عبد الكريم، ربي يبارك في عمرك ويحفظك ويجعل النجاح حليفك دائماً أينما وطأت قدمك! 🙏",
+            "🔥 أهلاً بسيد الرجال عبد الكريم! ربي يسهل عليك صعب الأمور ويجعل التوفيق طريقك الدائم! 🤲",
+            "💎 حيا الله الغالي عبد الكريم، ربي ينور دربك ويفتح عليك أبواب الخير الرزق الواسع! 🌟"
+        ]
+        import random
+        await message.reply(random.choice(responses))
+
 
 # 1. التنبيه عند إضافة البوت لمجموعة جديدة
 @dp.my_chat_member()
@@ -177,7 +194,7 @@ async def list_groups(message: Message):
         return
 
     if not config.ALLOWED_GROUP_IDS:
-        await message.reply("📋 لا توجد مجموعات مفعلة حالياً.")
+        await message.reply("Failed")
         return
 
     text = "📋 **المجموعات المفعلة حالياً:**\n\n"
@@ -196,7 +213,7 @@ async def list_groups(message: Message):
     await message.reply(text, reply_markup=keyboard, parse_mode="Markdown")
 
 
-# 4. الترحيب بالحي والمسح التلقائي بعد 15 ثانية
+# 4. الترحيب بالعضو الجديد والمسح التلقائي بعد 15 ثانية
 @dp.message(F.new_chat_members)
 async def welcome_members(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -209,7 +226,7 @@ async def welcome_members(message: Message):
         pass
 
 
-# 5. أمر البدء والمساعدة /start
+# 5. أمر البدء والمساعدة /start & /help
 @dp.message(Command("start"))
 @dp.message(Command("help"))
 async def cmd_start(message: Message):
@@ -225,7 +242,8 @@ async def cmd_start(message: Message):
         "• `/syn` + Word : Synonyms, Antonyms & Quick Forms ⚡\n"
         "• `/cor` + Text : Grammar & Spelling Correction ✏️\n"
         "• `/exp` + Word : Detailed Word Explanation & Forms 📚\n"
-        "• `/txt` (reply to an image) : Extract text from images 📝"
+        "• `/txt` (reply to an image) : Extract text from images 📝\n"
+        "• `/stt` (reply to a voice) : Convert voice to text 🎙"
     )
     await message.reply(WELCOME_MESSAGE, parse_mode="Markdown")
 
@@ -251,17 +269,17 @@ async def cmd_sus(message: Message):
     )
     await process_tts(message, text, config.VOICE_AMERICAN, is_us=True)
 
-# أمر الحصول على مرادفات وأضداد وتصاريف سريعة /syn
+
+# 8. الحصول على مرادفات وأضداد وتصاريف سريعة /syn
 @dp.message(Command("syn"))
 async def cmd_syn(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
     text = await get_text_from_msg(message, message.text.replace("/syn", "").strip())
     if not text:
-        await message.reply("❌ اكتب كلمة أو رد عليها لاستخراج المرادفات والأضداد.")
+        await message.reply("Failed")
         return
 
-    msg = await message.reply("🔍 جاري الجلب...")
     try:
         prompt = f"""
         Provide a very concise summary (maximum 5-6 lines) for the word/phrase: '{text}'.
@@ -277,33 +295,39 @@ async def cmd_syn(message: Message):
             model=MODEL_NAME,
             contents=prompt
         )
-        await msg.edit_text(res.text.strip())
-    except Exception as e:
-        await msg.edit_text(f"❌ حدث خطأ: {e}")
+        if res.text:
+            await message.reply(res.text.strip())
+        else:
+            await message.reply("Failed")
+    except Exception:
+        await message.reply("Failed")
 
-# 8. تصحيح الكتابة والقواعد /cor
+
+# 9. تصحيح الكتابة والقواعد /cor
 @dp.message(Command("cor"))
 async def cmd_cor(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
     text = await get_text_from_msg(message, message.text.replace("/cor", "").strip())
     if not text:
-        await message.reply("❌ اكتب نصاً أو رد على رسالة لتصحيحها.")
+        await message.reply("Failed")
         return
 
-    msg = await message.reply("⏳ جاري التصحيح...")
     try:
         prompt = f"Correct the spelling and grammar of this text. Return ONLY the corrected version:\n\n{text}"
         res = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt
         )
-        await msg.edit_text(f"✏️ **التصحيح:**\n{res.text.strip()}")
-    except Exception as e:
-        await msg.edit_text(f"❌ حدث خطأ أثناء التصحيح: {e}")
+        if res.text:
+            await message.reply(res.text.strip())
+        else:
+            await message.reply("Failed")
+    except Exception:
+        await message.reply("Failed")
 
 
-# 9. الترجمة إلى العربية /trab (تعتمد على Google Translate المجاني)
+# 10. الترجمة إلى العربية /trab
 @dp.message(Command("trab"))
 async def cmd_trab(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
@@ -319,14 +343,14 @@ async def cmd_trab(message: Message):
         await message.answer("Failed")
 
 
-# 10. الترجمة إلى الإنجليزية /treng (تعتمد على Google Translate المجاني)
+# 11. الترجمة إلى الإنجليزية /treng
 @dp.message(Command("treng"))
 async def cmd_treng(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
     text = await get_text_from_msg(message, message.text.replace("/treng", "").strip())
     if not text:
-        await message.answer("Failed")
+        await message.reply("Failed")
         return
     try:
         translated = GoogleTranslator(source='auto', target='en').translate(text)
@@ -335,17 +359,16 @@ async def cmd_treng(message: Message):
         await message.answer("Failed")
 
 
-# 11. الشرح والتحليل اللغوي /exp
+# 12. الشرح والتحليل اللغوي /exp
 @dp.message(Command("exp"))
 async def cmd_exp(message: Message):
     if not is_allowed(message.chat.id, message.from_user.id):
         return
     text = await get_text_from_msg(message, message.text.replace("/exp", "").strip())
     if not text:
-        await message.reply("❌ اكتب كلمة/جملة أو رد عليها لشرحها.")
+        await message.reply("Failed")
         return
 
-    msg = await message.reply("🔍 جاري التحليل والشرح...")
     try:
         prompt = f"""
         Analyze the word or phrase: '{text}'
@@ -359,12 +382,15 @@ async def cmd_exp(message: Message):
             model=MODEL_NAME,
             contents=prompt
         )
-        await msg.edit_text(res.text.strip())
-    except Exception as e:
-        await msg.edit_text(f"❌ حدث خطأ في الشرح: {e}")
+        if res.text:
+            await message.reply(res.text.strip())
+        else:
+            await message.reply("Failed")
+    except Exception:
+        await message.reply("Failed")
 
 
-# 12. تحويل النص داخل الصورة إلى كتابة /txt (مع تصغير الحجم لسرعة المعالجة)
+# 13. تحويل النص داخل الصورة إلى كتابة /txt
 @dp.message(Command("txt"))
 @dp.message(F.photo & F.caption.startswith("/txt"))
 async def cmd_txt(message: Message):
@@ -378,17 +404,15 @@ async def cmd_txt(message: Message):
         photo = message.reply_to_message.photo[-1]
 
     if not photo:
-        await message.reply("❌ يرجى الرد على صورة باستخدام الأمر `/txt` أو إرسال الصورة مكتوباً عليها `/txt`.")
+        await message.reply("Failed")
         return
 
-    status_msg = await message.reply("🔍 جاري قراءة النص من الصورة...")
     photo_path = f"img_{message.message_id}.jpg"
 
     try:
         file = await bot.get_file(photo.file_id)
         await bot.download_file(file.file_path, photo_path)
 
-        # فتح الصورة وتصغير حجمها لضمان سرعة الاستجابة
         img = Image.open(photo_path)
         img.thumbnail((1024, 1024))
 
@@ -399,13 +423,62 @@ async def cmd_txt(message: Message):
             contents=[img, prompt]
         )
 
-        extracted_text = res.text.strip() if res.text else "لم أستطع قراءة أي نص."
-        await status_msg.edit_text(f"📝 **النص المستخرج:**\n\n{extracted_text}")
-    except Exception as e:
-        await status_msg.edit_text(f"❌ حدث خطأ أثناء قراءة الصورة: {e}")
+        extracted_text = res.text.strip() if res.text else ""
+        if extracted_text:
+            await message.reply(extracted_text)
+        else:
+            await message.reply("Failed")
+    except Exception:
+        await message.reply("Failed")
     finally:
         if os.path.exists(photo_path):
             os.remove(photo_path)
+
+
+# 14. تحويل الصوت إلى نص /stt
+@dp.message(Command("stt"))
+@dp.message(F.voice | F.audio)
+async def cmd_stt(message: Message):
+    if not is_allowed(message.chat.id, message.from_user.id):
+        return
+
+    voice = message.voice or message.audio
+    if not voice and message.reply_to_message:
+        if message.reply_to_message.voice:
+            voice = message.reply_to_message.voice
+        elif message.reply_to_message.audio:
+            voice = message.reply_to_message.audio
+
+    if not voice:
+        await message.reply("Failed")
+        return
+
+    audio_path = f"voice_{message.message_id}.ogg"
+
+    try:
+        file = await bot.get_file(voice.file_id)
+        await bot.download_file(file.file_path, audio_path)
+
+        audio_file_ref = client.files.upload(file=audio_path)
+        
+        prompt = "Transcribe this audio file accurately. Return ONLY the transcribed text."
+        res = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[audio_file_ref, prompt]
+        )
+
+        transcript = res.text.strip() if res.text else ""
+        if transcript:
+            await message.reply(transcript)
+        else:
+            await message.reply("Failed")
+            
+        client.files.delete(name=audio_file_ref.name)
+    except Exception:
+        await message.reply("Failed")
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
 
 
 # تشغيل البوت
