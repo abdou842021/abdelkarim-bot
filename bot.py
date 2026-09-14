@@ -1,58 +1,322 @@
-import asyncio
-import random
+import html
+from urllib.parse import quote
 
-from aiogram import Bot, Dispatcher, F
+import requests
+import eng_to_ipa as ipa
+from deep_translator import GoogleTranslator
+
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-import config
+router = Router()
 
 
-async def main():
-    if not config.BOT_TOKEN:
-        raise ValueError("BOT_TOKEN is not set.")
+def get_word(message: Message) -> str:
+    # /syn word
+    if message.text:
+        parts = message.text.split(maxsplit=1)
 
-    bot = Bot(token=config.BOT_TOKEN)
-    dp = Dispatcher()
+        if len(parts) > 1:
+            return parts[1].strip().split()[0]
 
-    @dp.message(Command("start"))
-    async def start_handler(message: Message):
-        await message.answer(
-            "Welcome to Abdelkarim English Learning Bot! 🇬🇧🇺🇸\n\n"
-            "Use /help to see all available commands."
+    # Reply to a message containing a word
+    if message.reply_to_message:
+        text = (
+            message.reply_to_message.text
+            or message.reply_to_message.caption
+            or ""
+        ).strip()
+
+        if text:
+            return text.split()[0]
+
+    return ""
+
+
+def get_dictionary_data(word: str):
+    url = (
+        "https://api.dictionaryapi.dev/api/v2/entries/en/"
+        + quote(word)
+    )
+
+    try:
+        response = requests.get(url, timeout=10)
+
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+
+        if not data:
+            return None
+
+        return data[0]
+
+    except Exception:
+        return None
+
+
+def get_datamuse(word: str, relation: str):
+    try:
+        response = requests.get(
+            "https://api.datamuse.com/words",
+            params={
+                relation: word,
+                "max": 10,
+            },
+            timeout=10,
         )
 
-    @dp.message(Command("help"))
-    async def help_handler(message: Message):
-        await message.answer(
-            "📚 English Learning Bot\n\n"
-            "/trab - Translate to Arabic 🇩🇿\n"
-            "/treng - Translate to English 🇬🇧\n"
-            "/sus - American pronunciation 🇺🇸\n"
-            "/suk - British pronunciation 🇬🇧\n"
-            "/syn - Synonyms, antonyms and example 📖\n"
-            "/cor - Grammar and spelling correction ✏️\n"
-            "/quiz - English vocabulary quiz 🧠\n"
-            "/ocr - Read text from an image 📷\n"
-            "/groups - Manage activated groups 👥"
+        response.raise_for_status()
+
+        return [
+            item["word"]
+            for item in response.json()
+            if item.get("word")
+        ]
+
+    except Exception:
+        return []
+
+
+def get_arabic_meaning(definition: str) -> str:
+    try:
+        return GoogleTranslator(
+            source="en",
+            target="ar"
+        ).translate(definition)
+
+    except Exception:
+        return "لم يتم العثور على الترجمة"
+
+
+def clean_words(words, original_word):
+    result = []
+
+    for word in words:
+        word = word.strip()
+
+        if (
+            word
+            and word.lower() != original_word.lower()
+            and word.lower() not in [x.lower() for x in result]
+        ):
+            result.append(word)
+
+    return result
+
+
+@router.message(Command("syn"))
+async def synonyms_command(message: Message):
+    word = get_word(message)
+
+    if not word:
+        await message.reply(
+            "⚠️ Please send a word after /syn.\n\n"
+            "Example:\n"
+            "/syn semester"
         )
+        return
 
-    @dp.message(F.text)
-    async def name_trigger_handler(message: Message):
-        text = message.text.lower()
+    data = get_dictionary_data(word)
 
-        if text.startswith("/"):
-            return
+    if not data:
+        await message.reply(
+            f"❌ I couldn't find the word: {word}"
+        )
+        return
 
-        for trigger in config.NAME_TRIGGERS:
-            if trigger.lower() in text:
-                reply = random.choice(config.NAME_REPLIES)
-                await message.reply(reply)
+    # =========================
+    # WORD
+    # =========================
+
+    real_word = data.get("word", word)
+
+    # =========================
+    # PRONUNCIATION
+    # =========================
+
+    dictionary_ipa = ""
+
+    for phonetic in data.get("phonetics", []):
+        if phonetic.get("text"):
+            dictionary_ipa = phonetic["text"]
+            break
+
+    try:
+        second_ipa = ipa.convert(real_word)
+    except Exception:
+        second_ipa = ""
+
+    # =========================
+    # MEANING / DEFINITIONS
+    # =========================
+
+    meanings = data.get("meanings", [])
+
+    first_definition = ""
+    part_of_speech = ""
+
+    for meaning in meanings:
+        if not part_of_speech:
+            part_of_speech = meaning.get("partOfSpeech", "")
+
+        definitions = meaning.get("definitions", [])
+
+        if definitions:
+            first_definition = definitions[0].get(
+                "definition",
+                ""
+            )
+
+            if first_definition:
                 break
 
-    print("Bot is running...")
-    await dp.start_polling(bot)
+    arabic_meaning = ""
 
+    if first_definition:
+        arabic_meaning = get_arabic_meaning(
+            first_definition
+        )
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    # =========================
+    # SYNONYMS
+    # =========================
+
+    synonyms = []
+
+    for meaning in meanings:
+        synonyms.extend(
+            meaning.get("synonyms", [])
+        )
+
+    if len(synonyms) < 5:
+        synonyms.extend(
+            get_datamuse(real_word, "rel_syn")
+        )
+
+    synonyms = clean_words(
+        synonyms,
+        real_word
+    )[:6]
+
+    # =========================
+    # ANTONYMS
+    # =========================
+
+    antonyms = []
+
+    for meaning in meanings:
+        antonyms.extend(
+            meaning.get("antonyms", [])
+        )
+
+    if len(antonyms) < 5:
+        antonyms.extend(
+            get_datamuse(real_word, "rel_ant")
+        )
+
+    antonyms = clean_words(
+        antonyms,
+        real_word
+    )[:6]
+
+    # =========================
+    # EXAMPLE
+    # =========================
+
+    example = ""
+
+    for meaning in meanings:
+        for definition in meaning.get(
+            "definitions",
+            []
+        ):
+            if definition.get("example"):
+                example = definition["example"]
+                break
+
+        if example:
+            break
+
+    # =========================
+    # LINKS
+    # =========================
+
+    encoded_word = quote(real_word)
+
+    youglish_url = (
+        "https://youglish.com/pronounce/"
+        f"{encoded_word}/english"
+    )
+
+    playphrase_url = (
+        "https://playphrase.me/#/search?q="
+        f"{encoded_word}"
+    )
+
+    # =========================
+    # FORMAT
+    # =========================
+
+    safe_word = html.escape(real_word)
+
+    result = (
+        f"🇬🇧 <b>{safe_word}</b>\n"
+    )
+
+    if dictionary_ipa:
+        result += (
+            f"<i>{html.escape(dictionary_ipa)}</i>"
+        )
+
+    if second_ipa and second_ipa != dictionary_ipa:
+        result += (
+            f"   🔊 <b>{html.escape(second_ipa)}</b>"
+        )
+
+    result += "\n"
+
+    if arabic_meaning:
+        result += (
+            f"◀️ {html.escape(arabic_meaning)}"
+        )
+
+    if part_of_speech:
+        result += (
+            f"  <i>({html.escape(part_of_speech)})</i>"
+        )
+
+    result += "\n"
+
+    if synonyms:
+        result += (
+            "🔹 <b>Syn:</b> "
+            + html.escape(", ".join(synonyms))
+            + "\n"
+        )
+
+    if antonyms:
+        result += (
+            "🔸 <b>Ant:</b> "
+            + html.escape(", ".join(antonyms))
+            + "\n"
+        )
+
+    if example:
+        result += (
+            f"📝 <b>Ex:</b> "
+            f"{html.escape(example)}\n"
+        )
+
+    result += (
+        f'🗣 <a href="{youglish_url}">YouGlish</a>   '
+        f'🎬 <a href="{playphrase_url}">PlayPhrase</a>'
+    )
+
+    await message.reply(
+        result,
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
